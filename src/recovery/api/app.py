@@ -8,14 +8,19 @@ import hmac
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Any
 
+import httpx
 import structlog
 from elevenlabs.client import ElevenLabs
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio.client import Client
 from temporalio.service import RPCError
 
@@ -24,6 +29,8 @@ from recovery.config import get_settings
 from recovery.db import CallAttempt, Checkout, DoNotCall, RecoveryEvent, Shop, WebhookDelivery, session
 from recovery.log_config import configure_logging
 from recovery.shopify.webhooks import parse_checkout, verify_hmac
+from recovery.voice.dialer import BROWSER_CALL_PREFIX
+from recovery.voice.variables import call_variables
 from recovery.workflows.recovery import RecoveryWorkflow
 from recovery.workflows.types import CallOutcome, OrderInfo, RecoveryInput, workflow_id_for
 
@@ -328,3 +335,124 @@ async def tool_send_checkout_link(req: SendLinkRequest) -> dict[str, Any]:
             )
         )
     return {"ok": True, "channel": req.channel}
+
+
+# Browser phone (DIALER=browser): free end-to-end testing over the browser mic -------------------
+
+PHONE_PAGE = Path(__file__).with_name("phone.html")
+SIGNED_URL = "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
+RING_TIMEOUT = timedelta(minutes=30)  # matches the workflow's CALL_RESULT_TIMEOUT
+
+
+def browser_phone_enabled(request: Request) -> None:
+    """Local only: the page shows customer data, so it is refused when reached through the tunnel."""
+    if get_settings().dialer != "browser" or "cf-connecting-ip" in request.headers:
+        raise HTTPException(404)
+
+
+phone = APIRouter(prefix="/phone", dependencies=[Depends(browser_phone_enabled)])
+
+
+async def _ringing(db: AsyncSession, ring_id: str) -> CallAttempt:
+    attempt = (
+        await db.execute(
+            select(CallAttempt).where(CallAttempt.conversation_id == ring_id, CallAttempt.outcome.is_(None))
+        )
+    ).scalar_one_or_none()
+    if attempt is None or not ring_id.startswith(BROWSER_CALL_PREFIX):
+        raise HTTPException(404, "no such ringing call")
+    return attempt
+
+
+async def _variables(db: AsyncSession, attempt: CallAttempt) -> dict[str, str]:
+    shop, token = _token(attempt.workflow_id)
+    shop_row, checkout = await db.get(Shop, shop), await db.get(Checkout, token)
+    if shop_row is None or checkout is None:
+        raise HTTPException(404, "unknown checkout")
+    return call_variables(attempt.workflow_id, shop_row, checkout)
+
+
+@phone.get("", response_class=HTMLResponse)
+async def phone_page() -> str:
+    return PHONE_PAGE.read_text()
+
+
+@phone.get("/calls")
+async def phone_calls() -> list[dict[str, str]]:
+    async with session() as db:
+        attempts = (
+            (
+                await db.execute(
+                    select(CallAttempt)
+                    .where(
+                        CallAttempt.conversation_id.startswith(BROWSER_CALL_PREFIX),
+                        CallAttempt.outcome.is_(None),
+                        CallAttempt.started_at > datetime.now(UTC) - RING_TIMEOUT,
+                    )
+                    .order_by(CallAttempt.started_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        calls = []
+        for a in attempts:
+            v = await _variables(db, a)
+            calls.append(
+                {
+                    "ring_id": str(a.conversation_id),
+                    **{k: v[k] for k in ("shop_name", "cart_summary", "cart_total")},
+                }
+            )
+    return calls
+
+
+@phone.post("/calls/{ring_id}/answer")
+async def phone_answer(ring_id: str) -> dict[str, Any]:
+    s = get_settings()
+    async with session() as db:
+        variables = await _variables(db, await _ringing(db, ring_id))
+    async with httpx.AsyncClient(timeout=10) as http:
+        res = await http.get(
+            SIGNED_URL,
+            params={"agent_id": s.elevenlabs_agent_id},
+            headers={"xi-api-key": s.elevenlabs_api_key.get_secret_value()},
+        )
+    res.raise_for_status()
+    return {"signed_url": res.json()["signed_url"], "dynamic_variables": variables}
+
+
+class Connected(BaseModel):
+    conversation_id: str
+
+
+@phone.post("/calls/{ring_id}/connected")
+async def phone_connected(ring_id: str, body: Connected) -> dict[str, str]:
+    """Swap the placeholder for the real conversation id so the post-call webhook finds this attempt."""
+    async with session() as db:
+        attempt = await _ringing(db, ring_id)
+        attempt.conversation_id = body.conversation_id
+        db.add(
+            RecoveryEvent(
+                workflow_id=attempt.workflow_id,
+                shop=attempt.shop,
+                type="call_answered",
+                data={"conversation_id": body.conversation_id, "channel": "browser"},
+                agent_version=get_settings().agent_version,
+            )
+        )
+    return {"status": "ok"}
+
+
+@phone.post("/calls/{ring_id}/decline")
+async def phone_decline(ring_id: str, client: Annotated[Client, Depends(temporal)]) -> dict[str, str]:
+    """Simulates an unanswered call, exercising the retry path."""
+    async with session() as db:
+        attempt = await _ringing(db, ring_id)
+        attempt.outcome = "no_answer"
+        workflow_id = attempt.workflow_id
+    await _signal(client, workflow_id, "call_finished", CallOutcome("no_answer", ring_id))
+    return {"status": "ok"}
+
+
+app.include_router(phone)

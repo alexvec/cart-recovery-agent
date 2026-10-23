@@ -27,7 +27,16 @@ uv run python scripts/send_test_webhook.py checkout --token demo1
 uv run python scripts/send_test_webhook.py order --token demo1
 ```
 
-With `DIALER=fake` no phone rings. Set `DIALER=elevenlabs` once the ElevenLabs agent and Twilio number are configured.
+Three dialers, chosen with `DIALER`:
+
+| Dialer | What happens when the workflow places a call | Cost |
+|---|---|---|
+| `fake` | Logged only; nothing rings | Free |
+| `browser` | The call rings on http://localhost:8090/phone. Answer it and talk to the real agent over your microphone, with real tools, post-call webhook and attribution | ElevenLabs credits only |
+| `elevenlabs` | A real phone call through the Twilio number imported into ElevenLabs | Telephony + ElevenLabs |
+
+The browser phone answers only on localhost: requests arriving through the Cloudflare tunnel get a 404, because the
+page shows cart and customer details. Declining a call records it as unanswered, which exercises the retry path.
 
 Ports: Postgres on 5433 and the API on 8090, so they don't clash with local services.
 

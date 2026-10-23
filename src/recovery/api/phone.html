@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser Phone</title>
+<style>
+  :root {
+    --bg: #f4f3ef; --card: #ffffff; --ink: #1b1b19; --muted: #6b6a64; --line: #e3e1da;
+    --accept: #1f8f4e; --decline: #c8372d; --accent: #2f5bd3; --ai-bubble: #eef1f8; --me-bubble: #e9f5ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --card: #1e1e1c; --ink: #f1efe8; --muted: #9c9a92; --line: #33322e;
+      --accept: #34b26b; --decline: #e25b50; --accent: #7a9cf0; --ai-bubble: #252a36; --me-bubble: #1f3328;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .phone {
+    width: 100%; max-width: 380px; min-height: 640px; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line); border-radius: 36px; padding: 28px 22px;
+  }
+  .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-size: 26px; margin: 6px 0 2px; font-weight: 650; }
+  .sub { color: var(--muted); margin: 0; }
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
+  .avatar {
+    width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 14px;
+    background: var(--ai-bubble); font-size: 34px; font-weight: 650; color: var(--accent);
+  }
+  .ringing .avatar { animation: pulse 1.2s ease-out infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accept) 45%, transparent); } 100% { box-shadow: 0 0 0 26px transparent; } }
+  .cart { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; width: 100%; text-align: left; }
+  .cart b { display: block; }
+  .actions { display: flex; justify-content: space-around; padding-top: 18px; }
+  button {
+    border: 0; border-radius: 999px; color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+    width: 72px; height: 72px; display: grid; place-items: center;
+  }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .accept { background: var(--accept); }
+  .decline { background: var(--decline); }
+  .btn-label { text-align: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .transcript { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin: 18px 0 4px; max-height: 380px; }
+  .msg { padding: 9px 12px; border-radius: 14px; max-width: 85%; }
+  .msg.agent { background: var(--ai-bubble); align-self: flex-start; }
+  .msg.user { background: var(--me-bubble); align-self: flex-end; }
+  .speaking { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .speaking.on { background: var(--accept); }
+  a { color: var(--accent); }
+  .foot { font-size: 13px; color: var(--muted); text-align: center; margin-top: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main class="phone">
+  <section id="idle" class="center">
+    <div class="avatar" aria-hidden="true">☎</div>
+    <h1>Waiting for calls</h1>
+    <p class="sub">Abandon a checkout in the store. When the workflow places the call, it rings here.</p>
+  </section>
+
+  <section id="ringing" class="center ringing" hidden>
+    <div class="label" style="margin-bottom:18px">Incoming call</div>
+    <div class="avatar" id="initial" aria-hidden="true"></div>
+    <h1 id="caller"></h1>
+    <p class="sub">AI assistant</p>
+    <div class="cart"><span class="label">Cart</span><b id="cart"></b><span id="total" class="sub"></span></div>
+  </section>
+  <div class="actions" id="ring-actions" hidden>
+    <div><button class="decline" id="decline" aria-label="Decline"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="transform:rotate(135deg)"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></button><div class="btn-label">Decline</div></div>
+    <div><button class="accept" id="answer" aria-label="Answer"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></button><div class="btn-label">Answer</div></div>
+  </div>
+
+  <section id="call" hidden style="display:flex;flex-direction:column;flex:1">
+    <div class="label"><span class="speaking" id="speaking"></span><span id="status">Connecting…</span></div>
+    <h1 id="call-caller"></h1>
+    <div class="transcript" id="transcript" aria-live="polite"></div>
+    <div class="actions"><div><button class="decline" id="hangup" aria-label="Hang up"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="transform:rotate(135deg)"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></button><div class="btn-label">Hang up</div></div></div>
+  </section>
+
+  <section id="ended" class="center" hidden>
+    <div class="avatar" aria-hidden="true">✓</div>
+    <h1 id="ended-title">Call ended</h1>
+    <p class="sub" id="ended-sub">The post-call webhook reports the outcome to the workflow.</p>
+    <p class="foot">Follow it in the <a href="http://localhost:8233" target="_blank" rel="noopener">Temporal UI</a>.</p>
+    <button class="accept" id="again" style="width:auto;height:auto;padding:10px 18px;margin-top:10px">Back</button>
+  </section>
+</main>
+
+<script type="module">
+import { Conversation } from "https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.27.0/+esm";
+
+const $ = (id) => document.getElementById(id);
+const screens = ["idle", "ringing", "call", "ended"];
+let current = null, conversation = null, tone = null;
+
+function show(name) {
+  for (const s of screens) $(s).hidden = s !== name;
+  $("ring-actions").hidden = name !== "ringing";
+  if (name === "ringing") startTone(); else stopTone();
+}
+
+// A synthesized ring so the page needs no audio assets. Browsers only play it after a first click.
+function startTone() {
+  if (tone) return;
+  try {
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(ctx.destination);
+    for (const f of [440, 480]) { const o = ctx.createOscillator(); o.frequency.value = f; o.connect(gain); o.start(); }
+    const pattern = () => {
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.setValueAtTime(0, t + 1.6);
+    };
+    pattern();
+    tone = { ctx, timer: setInterval(pattern, 4000) };
+  } catch { tone = null; }
+}
+function stopTone() {
+  if (!tone) return;
+  clearInterval(tone.timer);
+  tone.ctx.close();
+  tone = null;
+}
+
+async function api(path, body) {
+  const res = await fetch(`/phone${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path}: ${res.status}`);
+  return res.json();
+}
+
+async function poll() {
+  if (conversation || !$("ended").hidden) return;
+  try {
+    const calls = await api("/calls");
+    if (calls.length && (!current || current.ring_id !== calls[0].ring_id)) {
+      current = calls[0];
+      $("caller").textContent = $("call-caller").textContent = current.shop_name;
+      $("initial").textContent = current.shop_name.slice(0, 1).toUpperCase();
+      $("cart").textContent = current.cart_summary;
+      $("total").textContent = current.cart_total;
+      show("ringing");
+    } else if (!calls.length && current) {
+      current = null;
+      show("idle");
+    }
+  } catch (e) { console.error(e); }
+}
+
+function addLine(role, text) {
+  const el = document.createElement("div");
+  el.className = `msg ${role}`;
+  el.textContent = text;
+  $("transcript").append(el);
+  el.scrollIntoView({ block: "end" });
+}
+
+function finish(title, sub) {
+  conversation = null;
+  current = null;
+  $("ended-title").textContent = title;
+  $("ended-sub").textContent = sub;
+  show("ended");
+}
+
+$("answer").onclick = async () => {
+  const ringId = current.ring_id;
+  $("answer").disabled = $("decline").disabled = true;
+  $("transcript").replaceChildren();
+  show("call");
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    const { signed_url, dynamic_variables } = await api(`/calls/${ringId}/answer`, {});
+    conversation = await Conversation.startSession({
+      signedUrl: signed_url,
+      dynamicVariables: dynamic_variables,
+      onConnect: ({ conversationId }) => {
+        $("status").textContent = "Connected";
+        api(`/calls/${ringId}/connected`, { conversation_id: conversationId }).catch(console.error);
+      },
+      onModeChange: ({ mode }) => $("speaking").classList.toggle("on", mode === "speaking"),
+      onMessage: ({ role, message }) => addLine(role, message),
+      onDisconnect: () => finish("Call ended", "The post-call webhook reports the outcome to the workflow."),
+      onError: (message) => console.error(message),
+    });
+  } catch (e) {
+    console.error(e);
+    finish("Couldn't connect", String(e.message || e));
+  } finally {
+    $("answer").disabled = $("decline").disabled = false;
+  }
+};
+
+$("decline").onclick = async () => {
+  await api(`/calls/${current.ring_id}/decline`, {}).catch(console.error);
+  finish("Declined", "Recorded as no answer. The workflow will retry later if attempts remain.");
+};
+
+$("hangup").onclick = () => conversation?.endSession();
+$("again").onclick = () => { show("idle"); poll(); };
+
+show("idle");
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

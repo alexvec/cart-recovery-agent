@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     pii_encryption_key: SecretStr = SecretStr("")
     phone_hash_key: SecretStr = SecretStr("")
 
-    dialer: Literal["fake", "elevenlabs"] = "fake"
+    dialer: Literal["fake", "browser", "elevenlabs"] = "fake"
     call_delay_minutes: int = 20
     max_call_attempts: int = 2
     attribution_window_hours: int = 72

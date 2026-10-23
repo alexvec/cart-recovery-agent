@@ -1,5 +1,6 @@
 """Outbound calling. The agent itself lives on ElevenLabs; this module only starts calls."""
 
+import secrets
 import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -12,6 +13,7 @@ from recovery.config import get_settings
 log = structlog.get_logger()
 
 OUTBOUND_CALL_URL = "https://api.elevenlabs.io/v1/convai/twilio/outbound-call"
+BROWSER_CALL_PREFIX = "web-"
 
 
 @dataclass(frozen=True)
@@ -34,9 +36,7 @@ class ElevenLabsDialer:
             "agent_id": s.elevenlabs_agent_id,
             "agent_phone_number_id": s.elevenlabs_phone_number_id,
             "to_number": req.to_number,
-            "conversation_initiation_client_data": {
-                "dynamic_variables": {"workflow_id": req.workflow_id, **req.dynamic_variables},
-            },
+            "conversation_initiation_client_data": {"dynamic_variables": req.dynamic_variables},
             "telephony_call_config": {"ringing_timeout_secs": 30},
         }
         async with httpx.AsyncClient(timeout=20) as client:
@@ -59,5 +59,23 @@ class FakeDialer:
         return conversation_id
 
 
+class BrowserDialer:
+    """Free end-to-end testing: the call "rings" on the local /phone page and runs over the browser mic.
+
+    The returned id is a placeholder; the page swaps in the real ElevenLabs conversation id once it
+    connects, so the post-call webhook and the rest of the workflow behave exactly as for a phone call.
+    """
+
+    async def dial(self, req: CallRequest) -> str:
+        ring_id = f"{BROWSER_CALL_PREFIX}{secrets.token_urlsafe(16)}"
+        log.info("browser_call_ringing", workflow_id=req.workflow_id, ring_id=ring_id)
+        return ring_id
+
+
 def get_dialer() -> Dialer:
-    return ElevenLabsDialer() if get_settings().dialer == "elevenlabs" else FakeDialer()
+    dialers: dict[str, type[Dialer]] = {
+        "elevenlabs": ElevenLabsDialer,
+        "browser": BrowserDialer,
+        "fake": FakeDialer,
+    }
+    return dialers[get_settings().dialer]()

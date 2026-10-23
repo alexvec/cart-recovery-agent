@@ -12,6 +12,7 @@ from recovery import economics, pii, policy
 from recovery.config import get_settings
 from recovery.db import CallAttempt, Checkout, DoNotCall, RecoveryEvent, Shop, session
 from recovery.voice.dialer import CallRequest, get_dialer
+from recovery.voice.variables import call_variables
 from recovery.workflows.types import EventIn, PolicyResult, RecoveryInput, workflow_id_for
 
 
@@ -121,12 +122,7 @@ async def place_call(inp: RecoveryInput) -> str:
         req = CallRequest(
             workflow_id=wid,
             to_number=pii.decrypt(checkout.phone_enc),
-            dynamic_variables={
-                "shop_name": shop.name or inp.shop.split(".")[0],
-                "first_name": pii.decrypt(checkout.first_name_enc) if checkout.first_name_enc else "there",
-                "cart_summary": ", ".join(f"{li['quantity']} x {li['title']}" for li in checkout.line_items),
-                "cart_total": f"{checkout.total_price} {checkout.currency}",
-            },
+            dynamic_variables=call_variables(wid, shop, checkout),
         )
 
     conversation_id = await get_dialer().dial(req)
