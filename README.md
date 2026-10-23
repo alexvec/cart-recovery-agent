@@ -75,7 +75,8 @@ uv run ruff check . && uv run mypy
 
 - [x] M1 core loop: webhooks, policy engine, durable workflow, fake dialer, attribution
 - [x] M1 agent: ElevenLabs agent as code, 9-scenario simulation suite (27/27 runs passing)
-- [ ] M1 real calls: Twilio number, protected customer data approval, app install on the dev store
+- [x] M1 Shopify: protected customer data approved, app installed on the dev store
+- [ ] M1 real calls: Twilio number imported into ElevenLabs
 - [ ] M2 discounts with server-enforced limits, SMS/WhatsApp link delivery, live stock checks, dashboard
 - [ ] M3 Terraform on AWS me-central-1, OpenTelemetry, SLO alerts, evaluation gate in CI
 - [ ] M4 merchant pilot, Arabic, write-up with real metrics
