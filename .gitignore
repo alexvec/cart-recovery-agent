@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.DS_Store
+shopify-app/node_modules/
+shopify-app/.shopify/
+evals/results/
+shopify-app/prisma/*.sqlite*
+shopify-app/build/

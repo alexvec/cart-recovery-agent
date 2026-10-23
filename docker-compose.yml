@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: recovery
+      POSTGRES_PASSWORD: recovery
+      POSTGRES_DB: recovery
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recovery"]
+      interval: 3s
+      retries: 20
+
+  temporal:
+    # Single-binary dev server with the Web UI on :8233. Production uses Temporal Cloud.
+    image: temporalio/temporal:1.9.1
+    user: "0"  # the dev server needs write access to its named volume
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db"]
+    ports: ["7233:7233", "8233:8233"]
+    volumes: [temporaldata:/data]
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    env_file: [.env]
+    environment: &app_env
+      DATABASE_URL: postgresql+asyncpg://recovery:recovery@postgres:5432/recovery
+      TEMPORAL_ADDRESS: temporal:7233
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: .
+    env_file: [.env]
+    environment: *app_env
+    ports: ["8090:8080"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      temporal: { condition: service_started }
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["python", "-m", "recovery.worker"]
+    env_file: [.env]
+    environment: *app_env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      temporal: { condition: service_started }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  temporaldata:

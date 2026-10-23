@@ -1,0 +1,57 @@
+[project]
+name = "cart-recovery-agent"
+version = "0.1.0"
+description = "Voice agent that recovers abandoned Shopify checkouts, with deterministic guardrails and measured incrementality."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20",
+    "asyncpg>=0.32",
+    "cryptography>=50.0",
+    "elevenlabs>=2.74",
+    "fastapi>=0.161",
+    "httpx>=0.28",
+    "phonenumbers>=9.0",
+    "pydantic-settings>=2.16",
+    "sqlalchemy[asyncio]>=2.1",
+    "structlog>=26.1",
+    "temporalio>=1.34",
+    "uvicorn[standard]>=0.54",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170",
+    "mypy>=2.4",
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.17",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recovery"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "RUF"]
+ignore = ["S101"]  # asserts are fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]
+"scripts/*" = ["S603", "S607"]  # dev scripts invoke the Shopify CLI with fixed arguments
+"migrations/versions/*" = ["E501"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

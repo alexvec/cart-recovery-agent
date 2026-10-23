@@ -1,0 +1,38 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "1d68ea284963e5b0c8697f8b8bbbfde6"
+application_url = "https://example.com"
+embedded = true
+name = "cart-recovery-agent"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# read_orders: checkouts/* and orders/create webhooks. write_discounts: capped recovery codes (M2).
+scopes = "read_orders,read_products,read_customers,write_discounts"
+
+[webhooks]
+api_version = "2027-01"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  # Recovery pipeline: delivered straight to the Python API (see ../src/recovery/api/app.py).
+  # Dev uses a Cloudflare quick tunnel; production switches this to Amazon EventBridge.
+  [[webhooks.subscriptions]]
+  uri = "https://attractive-reserve-discretion-kentucky.trycloudflare.com/webhooks/shopify"
+  topics = [ "checkouts/create", "checkouts/update", "orders/create", "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://attractive-reserve-discretion-kentucky.trycloudflare.com/webhooks/shopify"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+[auth]
+redirect_urls = [ "https://example.com/api/auth" ]
+
+[build]
+automatically_update_urls_on_dev = true

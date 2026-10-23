@@ -1,0 +1,26 @@
+[
+  {
+    "name": "get_cart",
+    "description": "Get the live contents and total of the customer's checkout, and whether they already purchased. Call this before mentioning any item, price or availability.",
+    "path": "/tools/get_cart",
+    "body": {}
+  },
+  {
+    "name": "send_checkout_link",
+    "description": "Send the customer a link to complete their checkout. Use when they want to finish the order or are busy.",
+    "path": "/tools/send_checkout_link",
+    "body": {
+      "channel": {
+        "type": "string",
+        "description": "Where to send the link: 'sms' by default, or 'whatsapp' if the customer asks for it.",
+        "enum": ["sms", "whatsapp"]
+      }
+    }
+  },
+  {
+    "name": "opt_out",
+    "description": "Add the customer's number to the do-not-call list. Use immediately if they ask not to be called, say it is a wrong number, are not the named customer, or are upset.",
+    "path": "/tools/opt_out",
+    "body": {}
+  }
+]

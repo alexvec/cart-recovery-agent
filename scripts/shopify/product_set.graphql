@@ -1,0 +1,18 @@
+mutation SeedProduct($input: ProductSetInput!) {
+  productSet(synchronous: true, input: $input) {
+    product {
+      id
+      title
+      variants(first: 5) {
+        nodes {
+          id
+          price
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
